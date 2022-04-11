@@ -4,6 +4,7 @@ import (
 	"github.com/dilaragorum/movie-go/handler"
 	"github.com/dilaragorum/movie-go/repository"
 	"github.com/dilaragorum/movie-go/service"
+	"github.com/julienschmidt/httprouter"
 	"log"
 	"net/http"
 )
@@ -13,14 +14,19 @@ func main() {
 	movieService := service.NewDefaultMovieService(movieInMemoryRepository)
 	movieHandler := handler.NewMovieHandler(movieService)
 
-	http.HandleFunc("/movies", movieHandler.GetMovies)
-	http.HandleFunc("/movie", movieHandler.GetMovie)
-	http.HandleFunc("/createmovie", movieHandler.CreateMovie)
-	http.HandleFunc("/deletemovie", movieHandler.DeleteMovie)
-	http.HandleFunc("/deleteallmovies", movieHandler.DeleteAllMovies)
-	http.HandleFunc("/updatemovie", movieHandler.UpdateMovie)
+	router := httprouter.New()
+
+	router.GET("/movies", movieHandler.GetMovies)
+	router.GET("/movies/:id", movieHandler.GetMovie)
+
+	router.POST("/movies", movieHandler.CreateMovie)
+
+	router.PATCH("/movies/:id", movieHandler.UpdateMovie)
+
+	router.DELETE("/movies", movieHandler.DeleteAllMovies)
+	router.DELETE("/movies/:id", movieHandler.DeleteMovie)
 
 	log.Println("http server runs on :8080")
-	err := http.ListenAndServe(":8080", nil)
+	err := http.ListenAndServe(":8080", router)
 	log.Fatal(err)
 }

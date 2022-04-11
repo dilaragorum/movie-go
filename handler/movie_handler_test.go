@@ -3,54 +3,33 @@ package handler
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"github.com/dilaragorum/movie-go/model"
 	"github.com/dilaragorum/movie-go/service"
+	"github.com/golang/mock/gomock"
+	"github.com/julienschmidt/httprouter"
 	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 )
 
-// Get
-func TestMovieHandler_GetMovies_HTTPMethod_Tests(t *testing.T) {
-	tests := []struct {
-		name      string
-		reqMethod string
-	}{
-		{
-			name:      "POST not ALLOWED",
-			reqMethod: http.MethodPost,
-		},
-		{
-			name:      "PUT not ALLOWED",
-			reqMethod: http.MethodPut,
-		},
-		{
-			name:      "DELETE not ALLOWED",
-			reqMethod: http.MethodDelete,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req, _ := http.NewRequest(tt.reqMethod, "/movies", http.NoBody)
-			rec := httptest.NewRecorder()
-			mh := NewMovieHandler(nil)
-			mh.GetMovies(rec, req)
-
-			assert.Equal(t, http.StatusMethodNotAllowed, rec.Code)
-		})
-	}
-}
-
 func TestMovieHandler_GetMovies(t *testing.T) {
 	t.Run("Error", func(t *testing.T) {
 		req, _ := http.NewRequest(http.MethodGet, "/movies", http.NoBody)
 		rec := httptest.NewRecorder()
 
-		mockMovieSvc := service.MockMovieService{ReturnErr: true}
-		mh := NewMovieHandler(mockMovieSvc)
+		mockService := service.NewMockIMovieService(gomock.NewController(t))
+		mockService.
+			EXPECT().
+			GetMovies().
+			Return([]model.Movie{}, errors.New("oops!")).
+			Times(1)
 
-		mh.GetMovies(rec, req)
+		mh := NewMovieHandler(mockService)
+
+		mh.GetMovies(rec, req, nil)
 
 		assert.Equal(t, http.StatusInternalServerError, rec.Code)
 	})
@@ -58,10 +37,16 @@ func TestMovieHandler_GetMovies(t *testing.T) {
 		req, _ := http.NewRequest(http.MethodGet, "/movies", http.NoBody)
 		rec := httptest.NewRecorder()
 
-		mockMovieSvc := service.MockMovieService{ReturnErr: false}
-		mh := NewMovieHandler(mockMovieSvc)
+		mockService := service.NewMockIMovieService(gomock.NewController(t))
+		mockService.
+			EXPECT().
+			GetMovies().
+			Return([]model.Movie{{ID: 1, Title: "Film"}}, nil).
+			Times(1)
 
-		mh.GetMovies(rec, req)
+		mh := NewMovieHandler(mockService)
+
+		mh.GetMovies(rec, req, nil)
 
 		assert.Equal(t, http.StatusOK, rec.Code)
 
@@ -69,62 +54,46 @@ func TestMovieHandler_GetMovies(t *testing.T) {
 		json.NewDecoder(rec.Body).Decode(&returnedMovies)
 
 		assert.Equal(t, 1, returnedMovies[0].ID)
-		assert.Equal(t, 2, returnedMovies[1].ID)
-
+		assert.Equal(t, "Film", returnedMovies[0].Title)
 	})
 }
 
-func TestMovieHandler_GetMovie_HTTPMethod_Tests(t *testing.T) {
-	tests := []struct {
-		name      string
-		reqMethod string
-	}{
-		{
-			name:      "POST not allowed",
-			reqMethod: http.MethodPost,
-		},
-		{
-			name:      "PUT not allowed",
-			reqMethod: http.MethodPut,
-		},
-		{
-			name:      "DELETE not allowed",
-			reqMethod: http.MethodDelete,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req, _ := http.NewRequest(tt.reqMethod, "/movie", http.NoBody)
-			rec := httptest.NewRecorder()
-
-			mh := &movieHandler{nil}
-			mh.GetMovies(rec, req)
-
-			assert.Equal(t, http.StatusMethodNotAllowed, rec.Code)
-		})
-	}
-}
-
 func TestMovieHandler_GetMovie(t *testing.T) {
+	movieID := "1"
+	reqURL := fmt.Sprintf("/movies/%s", movieID)
+	ps := httprouter.Params{
+		{Key: "id", Value: movieID},
+	}
+
 	t.Run("get movie error", func(t *testing.T) {
-		req, _ := http.NewRequest("GET", "/movie", http.NoBody)
+		req, _ := http.NewRequest("GET", reqURL, http.NoBody)
 		rec := httptest.NewRecorder()
 
-		mockMovieSvc := service.MockMovieService{ReturnErr: true}
-		mh := NewMovieHandler(mockMovieSvc)
-		mh.GetMovie(rec, req)
+		mockService := service.NewMockIMovieService(gomock.NewController(t))
+		mockService.
+			EXPECT().
+			GetMovie(1).
+			Return(model.Movie{}, errors.New("oops!")).
+			Times(1)
+
+		mh := NewMovieHandler(mockService)
+		mh.GetMovie(rec, req, ps)
 
 		assert.Equal(t, http.StatusInternalServerError, rec.Code)
 	})
 	t.Run("success", func(t *testing.T) {
-		req, _ := http.NewRequest("GET", "/movie?id=1", http.NoBody)
+		req, _ := http.NewRequest("GET", reqURL, http.NoBody)
 		rec := httptest.NewRecorder()
 
-		mockMovieSvc := service.MockMovieService{ReturnErr: false}
-		mh := NewMovieHandler(mockMovieSvc)
+		mockService := service.NewMockIMovieService(gomock.NewController(t))
+		mockService.
+			EXPECT().
+			GetMovie(1).
+			Return(model.Movie{ID: 1}, nil).
+			Times(1)
 
-		mh.GetMovie(rec, req)
+		mh := NewMovieHandler(mockService)
+		mh.GetMovie(rec, req, ps)
 
 		assert.Equal(t, http.StatusOK, rec.Code)
 
@@ -132,243 +101,164 @@ func TestMovieHandler_GetMovie(t *testing.T) {
 		json.NewDecoder(rec.Body).Decode(&ReturnMovie)
 
 		assert.Equal(t, 1, ReturnMovie.ID)
-
 	})
 }
 
-func TestMovieHandler_CreateMovie_HTTPMethod_Tests(t *testing.T) {
-	tests := []struct {
-		name      string
-		reqMethod string
-	}{
-		{
-			name:      "GET not allowed",
-			reqMethod: http.MethodGet,
-		},
-		{
-			name:      "PUT not allowed",
-			reqMethod: http.MethodPut,
-		},
-		{
-			name:      "DELETE not allowed",
-			reqMethod: http.MethodDelete,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req, _ := http.NewRequest(tt.reqMethod, "/moviecreate", http.NoBody)
-			rec := httptest.NewRecorder()
-
-			mh := NewMovieHandler(nil)
-			mh.CreateMovie(rec, req)
-
-			assert.Equal(t, http.StatusMethodNotAllowed, rec.Code)
-		})
-	}
-}
-
 func TestMovieHandler_CreateMovie(t *testing.T) {
-	t.Run("create movie error", func(t *testing.T) {
-		createdMovieReq := model.Movie{Title: "Test Film"}
-		jsonStr, _ := json.Marshal(createdMovieReq)
-		req, _ := http.NewRequest(http.MethodPost, "/moviecreate", bytes.NewBuffer(jsonStr))
+	createdMovieReq := model.Movie{Title: "Test Movie"}
+	jsonStr, _ := json.Marshal(createdMovieReq)
 
+	t.Run("create movie error", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodPost, "/movies", bytes.NewBuffer(jsonStr))
 		rec := httptest.NewRecorder()
 
-		mockMovieSvc := service.MockMovieService{ReturnErr: true}
-		mh := NewMovieHandler(mockMovieSvc)
-		mh.CreateMovie(rec, req)
+		mockService := service.NewMockIMovieService(gomock.NewController(t))
+		mockService.
+			EXPECT().
+			CreateMovie(model.Movie{Title: "Test Movie"}).
+			Return("", errors.New("Ups!")).
+			Times(1)
+
+		mh := NewMovieHandler(mockService)
+		mh.CreateMovie(rec, req, nil)
 
 		assert.Equal(t, http.StatusInternalServerError, rec.Code)
 	})
 	t.Run("Success", func(t *testing.T) {
-		createdMovieReq := model.Movie{Title: "Test Film"}
-		jsonStr, _ := json.Marshal(createdMovieReq)
-		req, _ := http.NewRequest(http.MethodPost, "/moviecreate", bytes.NewBuffer(jsonStr))
+		req, _ := http.NewRequest(http.MethodPost, "/movies", bytes.NewBuffer(jsonStr))
 		rec := httptest.NewRecorder()
 
-		mockMovieSvc := service.MockMovieService{ReturnErr: false}
-		mh := NewMovieHandler(mockMovieSvc)
-		mh.CreateMovie(rec, req)
+		mockService := service.NewMockIMovieService(gomock.NewController(t))
+		mockService.
+			EXPECT().
+			CreateMovie(model.Movie{Title: "Test Movie"}).
+			Return("New movie is successfully added", nil).
+			Times(1)
+
+		mh := NewMovieHandler(mockService)
+		mh.CreateMovie(rec, req, nil)
 
 		responseBodyStr := rec.Body.String()
 		assert.Equal(t, "New movie is successfully added", responseBodyStr)
 	})
 }
 
-func TestMovieHandler_DeleteMovie_HTTPMethod_Tests(t *testing.T) {
-	tests := []struct {
-		name      string
-		reqMethod string
-	}{
-		{
-			name:      "GET not allowed",
-			reqMethod: http.MethodGet,
-		},
-		{
-			name:      "POST not allowed",
-			reqMethod: http.MethodPost,
-		},
-		{
-			name:      "PUT not allowed",
-			reqMethod: http.MethodPut,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req, _ := http.NewRequest(tt.reqMethod, "/deletemovie", http.NoBody)
-			rec := httptest.NewRecorder()
-
-			mh := NewMovieHandler(nil)
-			mh.DeleteMovie(rec, req)
-
-			assert.Equal(t, http.StatusMethodNotAllowed, rec.Code)
-		})
-	}
-}
-
 func TestMovieHandler_DeleteMovie(t *testing.T) {
+	movieID := "1"
+	requestURL := fmt.Sprintf("/movies/%s", movieID)
+	ps := httprouter.Params{
+		{Key: "id", Value: movieID},
+	}
+
 	t.Run("delete movie error", func(t *testing.T) {
-		req, _ := http.NewRequest(http.MethodDelete, "/deletemovie", http.NoBody)
+		req, _ := http.NewRequest(http.MethodDelete, requestURL, http.NoBody)
 		rec := httptest.NewRecorder()
 
-		mockMovieSvc := service.MockMovieService{ReturnErr: true}
-		mh := NewMovieHandler(mockMovieSvc)
+		mockService := service.NewMockIMovieService(gomock.NewController(t))
+		mockService.
+			EXPECT().
+			DeleteMovie(1).
+			Return("", errors.New("Upps!")).
+			Times(1)
 
-		mh.DeleteMovie(rec, req)
+		mh := NewMovieHandler(mockService)
+
+		mh.DeleteMovie(rec, req, ps)
 
 		assert.Equal(t, http.StatusInternalServerError, rec.Code)
 
 	})
 	t.Run("success", func(t *testing.T) {
-		req, _ := http.NewRequest(http.MethodDelete, "/deletemovie?id=1", http.NoBody)
+		req, _ := http.NewRequest(http.MethodDelete, requestURL, http.NoBody)
 		rec := httptest.NewRecorder()
 
-		mockMovieSvc := service.MockMovieService{ReturnErr: false}
-		mh := NewMovieHandler(mockMovieSvc)
+		mockService := service.NewMockIMovieService(gomock.NewController(t))
+		mockService.
+			EXPECT().
+			DeleteMovie(1).
+			Return("Movie is successfully deleted", nil)
 
-		mh.DeleteMovie(rec, req)
+		mh := NewMovieHandler(mockService)
+
+		mh.DeleteMovie(rec, req, ps)
 
 		assert.Equal(t, "Movie is successfully deleted", rec.Body.String())
 	})
 }
 
-func TestMovieHandler_DeleteAllMovie_HTTPMethod_Tests(t *testing.T) {
-	tests := []struct {
-		name      string
-		reqMethod string
-	}{
-		{
-			name:      "GET not allowed",
-			reqMethod: http.MethodGet,
-		},
-		{
-			name:      "POST not allowed",
-			reqMethod: http.MethodPost,
-		},
-		{
-			name:      "PUT not allowed",
-			reqMethod: http.MethodPut,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req, _ := http.NewRequest(tt.reqMethod, "/deleteallmovies", http.NoBody)
-			res := httptest.NewRecorder()
-
-			mh := NewMovieHandler(nil)
-			mh.DeleteAllMovies(res, req)
-
-			assert.Equal(t, http.StatusMethodNotAllowed, res.Code)
-		})
-	}
-}
-
 func TestMovieHandler_DeleteAllMovies(t *testing.T) {
 	t.Run("delete all movie error", func(t *testing.T) {
-		req, _ := http.NewRequest(http.MethodDelete, "/deleteallmovies", http.NoBody)
+		req, _ := http.NewRequest(http.MethodDelete, "/movies", http.NoBody)
 		rec := httptest.NewRecorder()
 
-		mockMovieSvc := service.MockMovieService{ReturnErr: true}
-		mh := NewMovieHandler(mockMovieSvc)
-		mh.DeleteAllMovies(rec, req)
+		mockService := service.NewMockIMovieService(gomock.NewController(t))
+		mockService.
+			EXPECT().
+			DeleteAllMovie().
+			Return("", errors.New("Ops!")).
+			Times(1)
+
+		mh := NewMovieHandler(mockService)
+		mh.DeleteAllMovies(rec, req, nil)
 
 		assert.Equal(t, http.StatusInternalServerError, rec.Code)
-
 	})
 	t.Run("delete all movie successfully", func(t *testing.T) {
-		req, _ := http.NewRequest(http.MethodDelete, "/deleteallmovies", http.NoBody)
+		req, _ := http.NewRequest(http.MethodDelete, "/movies", http.NoBody)
 		rec := httptest.NewRecorder()
 
-		mockMovieSvc := service.MockMovieService{ReturnErr: false}
-		mh := NewMovieHandler(mockMovieSvc)
-		mh.DeleteAllMovies(rec, req)
+		mockService := service.NewMockIMovieService(gomock.NewController(t))
+		mockService.
+			EXPECT().
+			DeleteAllMovie().
+			Return("All movies are successfully deleted", nil)
+
+		mh := NewMovieHandler(mockService)
+		mh.DeleteAllMovies(rec, req, nil)
 
 		assert.Equal(t, "All movies are successfully deleted", rec.Body.String())
 	})
 }
 
-func TestMovieHandler_UpdateMovie_HTTPMethod_Tests(t *testing.T) {
-	tests := []struct {
-		name      string
-		reqMethod string
-	}{
-		{
-			name:      "GET not allowed",
-			reqMethod: http.MethodGet,
-		},
-		{
-			name:      "POST not allowed",
-			reqMethod: http.MethodPost,
-		},
-		{
-			name:      "DELETE not allowed",
-			reqMethod: http.MethodDelete,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			req, _ := http.NewRequest(tt.reqMethod, "updatemovie", http.NoBody)
-			rec := httptest.NewRecorder()
-
-			mh := NewMovieHandler(nil)
-			mh.UpdateMovie(rec, req)
-
-			assert.Equal(t, http.StatusMethodNotAllowed, rec.Code)
-
-		})
-	}
-}
-
 func TestMovieHandler_UpdateMovie(t *testing.T) {
-	t.Run("update movie error", func(t *testing.T) {
-		updatedMovie := model.Movie{Title: "Test Movie"}
-		jsonStr, _ := json.Marshal(updatedMovie)
+	movieID := "1"
+	requestURL := fmt.Sprintf("/movies/%s", movieID)
+	updatedMovie := model.Movie{Title: "Test Movie"}
+	jsonStr, _ := json.Marshal(updatedMovie)
+	ps := httprouter.Params{
+		{Key: "id", Value: movieID},
+	}
 
-		req, _ := http.NewRequest(http.MethodPatch, "/updatemovie", bytes.NewBuffer(jsonStr))
+	t.Run("update movie error", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodPatch, requestURL, bytes.NewBuffer(jsonStr))
 		rec := httptest.NewRecorder()
 
-		mockMovieSvc := service.MockMovieService{ReturnErr: true}
-		mh := NewMovieHandler(mockMovieSvc)
-		mh.UpdateMovie(rec, req)
+		mockService := service.NewMockIMovieService(gomock.NewController(t))
+		mockService.
+			EXPECT().
+			UpdateMovie(1, updatedMovie).
+			Return("", errors.New("Ups!")).
+			Times(1)
+
+		mh := NewMovieHandler(mockService)
+		mh.UpdateMovie(rec, req, ps)
 
 		assert.Equal(t, http.StatusInternalServerError, rec.Code)
 	})
 
-	t.Run("uptade movie successfully", func(t *testing.T) {
-		updatedMovie := model.Movie{Title: "Test Movie"}
-		jsonStr, _ := json.Marshal(updatedMovie)
-
-		req, _ := http.NewRequest(http.MethodPatch, "/updatemovie", bytes.NewBuffer(jsonStr))
+	t.Run("update movie successfully", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodPatch, requestURL, bytes.NewBuffer(jsonStr))
 		rec := httptest.NewRecorder()
 
-		mockMovieSvc := service.MockMovieService{ReturnErr: false}
-		mh := NewMovieHandler(mockMovieSvc)
-		mh.UpdateMovie(rec, req)
+		mockService := service.NewMockIMovieService(gomock.NewController(t))
+		mockService.
+			EXPECT().
+			UpdateMovie(1, updatedMovie).
+			Return("Movie is successfully updated", nil).
+			Times(1)
+
+		mh := NewMovieHandler(mockService)
+		mh.UpdateMovie(rec, req, ps)
 
 		responseBodyStr := rec.Body.String()
 		assert.Equal(t, "Movie is successfully updated", responseBodyStr)

@@ -5,33 +5,21 @@ import (
 	"errors"
 	"github.com/dilaragorum/movie-go/model"
 	"github.com/dilaragorum/movie-go/service"
+	"github.com/julienschmidt/httprouter"
 	"net/http"
 	"strconv"
 )
 
-// Önemli : Biz burada Handler struct'ı içerisinde getMovies / getMovie gibi metotları
-// service.IMovieService'ı satisfy etmek için yazmıyoruz. Bu Dependency Injection oluyor.
-// Ben Dependency Injection yaparak, IMovieService interface'ini satisfy eden struct'ların
-//metotlarını çağırabiliyorum.
 type movieHandler struct {
 	service service.IMovieService
 }
 
-// Pointer kullanmak yerine bu metodu kullanıp içeride logic/ yada başka bir metot
-// kullanabiliyorum. Böylece testlerde, newMovieHandler kullanıldığı için, bu kodum hepsinde
-// çalıştırılıyor. MockMovie Struct'ı da DefaultMovieService struct'ıda olsa interface'i
-// satisfy ettiği sürece kullanılabilir.
 func NewMovieHandler(ms service.IMovieService) *movieHandler {
 	return &movieHandler{service: ms}
 }
 
 // curl localhost:8080/movies | jq
-func (mh *movieHandler) GetMovies(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	// işi Service'a delege ediyoruz.
+func (mh *movieHandler) GetMovies(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	movies, err := mh.service.GetMovies()
 	if err != nil {
 		http.Error(w, "Unable to get all movies", http.StatusInternalServerError)
@@ -48,14 +36,9 @@ func (mh *movieHandler) GetMovies(w http.ResponseWriter, r *http.Request) {
 	w.Write(jsonStr)
 }
 
-// curl "localhost:8080/movie?id=1" | jq
-func (mh *movieHandler) GetMovie(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method is not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	id, _ := strconv.Atoi(r.URL.Query().Get("id"))
+// curl "localhost:8080/movies/1" | jq
+func (mh *movieHandler) GetMovie(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	id, _ := strconv.Atoi(ps.ByName("id"))
 	// İşi service'a delege ediyoruz.
 	movie, err := mh.service.GetMovie(id)
 	if err != nil {
@@ -78,16 +61,11 @@ func (mh *movieHandler) GetMovie(w http.ResponseWriter, r *http.Request) {
 }
 
 /*
-curl -X POST localhost:8080/moviecreate \
+curl -X POST localhost:8080/movies \
 -H 'Content-Type: application/json' \
 -d '{ "title": "Güzel film" }'
 */
-func (mh *movieHandler) CreateMovie(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
+func (mh *movieHandler) CreateMovie(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	var movie model.Movie
 	err := json.NewDecoder(r.Body).Decode(&movie)
 	if err != nil {
@@ -109,13 +87,8 @@ func (mh *movieHandler) CreateMovie(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(msg))
 }
 
-func (mh *movieHandler) DeleteMovie(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	id, _ := strconv.Atoi(r.URL.Query().Get("id"))
+func (mh *movieHandler) DeleteMovie(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	id, _ := strconv.Atoi(ps.ByName("id"))
 	// İşi service'e delege ediyorum.
 	message, err := mh.service.DeleteMovie(id)
 
@@ -131,11 +104,7 @@ func (mh *movieHandler) DeleteMovie(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(message))
 }
 
-func (mh *movieHandler) DeleteAllMovies(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+func (mh *movieHandler) DeleteAllMovies(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	//Service'a delegate ediyorum
 	msg, err := mh.service.DeleteAllMovie()
 	if err != nil {
@@ -145,12 +114,9 @@ func (mh *movieHandler) DeleteAllMovies(w http.ResponseWriter, r *http.Request) 
 	w.Write([]byte(msg))
 }
 
-//curl -X PATCH "localhost:8080/updatemovie?id=1" -d '{ "title": "Güzel film" }'
-func (mh *movieHandler) UpdateMovie(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPatch {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+//curl -X PATCH "localhost:8080/movies/1" -d '{ "title": "Güzel film" }'
+func (mh *movieHandler) UpdateMovie(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	id, _ := strconv.Atoi(ps.ByName("id"))
 
 	var movie model.Movie
 	err := json.NewDecoder(r.Body).Decode(&movie)
@@ -158,7 +124,6 @@ func (mh *movieHandler) UpdateMovie(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "error when decoding json", http.StatusInternalServerError)
 		return
 	}
-	id, _ := strconv.Atoi(r.URL.Query().Get("id"))
 
 	// id ve requestteki  body'i decode ederek işi Service' a delege ediyorum.
 	msg, err := mh.service.UpdateMovie(id, movie)

@@ -109,6 +109,7 @@ func (mh *movieHandler) DeleteAllMovies(w http.ResponseWriter, r *http.Request, 
 	msg, err := mh.service.DeleteAllMovie()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	w.Write([]byte(msg))

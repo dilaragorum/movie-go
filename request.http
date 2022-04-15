@@ -1,0 +1,29 @@
+### Get Movies
+GET http://localhost:8080/movies
+
+
+### Get Movie id: 1
+GET http://localhost:8080/movies/1
+
+
+### Post Movie
+POST http://localhost:8080/movies
+Content-Type: application/json
+
+{
+   "title" : "A Beautiful Mind"
+}
+
+### Patch Movie id:1
+PATCH http://localhost:8080/movies/1
+Content-Type: application/json
+
+{
+   "title": "A Beautiful Mind"
+}
+
+### Delete Movies
+DELETE http://localhost:8080/movies
+
+### Delete Movie id: 1
+DELETE http://localhost:8080/movies/1

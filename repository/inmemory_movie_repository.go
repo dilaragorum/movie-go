@@ -5,15 +5,19 @@ import (
 	"github.com/dilaragorum/movie-go/model"
 )
 
+var (
+	ErrMovieNotFound = errors.New("FromRepository - movie not found")
+)
+
 type inmemoryMovieRepository struct {
 	Movies []model.Movie
 }
 
 func NewInMemoryMovieRepository() *inmemoryMovieRepository {
 	var movies = []model.Movie{
-		{ID: 1, Title: "Naruto"},
-		{ID: 2, Title: "Closer"},
-		{ID: 3, Title: "Mr Nobody"},
+		{ID: 1, Title: "The Shawshank Redemption", ReleaseYear: 1994, Score: 9.3},
+		{ID: 2, Title: "The Godfather", ReleaseYear: 1972, Score: 9.2},
+		{ID: 3, Title: "The Dark Knight", ReleaseYear: 2008, Score: 9.0},
 	}
 
 	return &inmemoryMovieRepository{
@@ -31,49 +35,49 @@ func (i *inmemoryMovieRepository) GetMovie(id int) (model.Movie, error) {
 			return movie, nil
 		}
 	}
-	return model.Movie{}, errors.New("Movie cannot be found")
+	return model.Movie{}, ErrMovieNotFound
 }
 
-func (i *inmemoryMovieRepository) CreateMovie(movie model.Movie) (string, error) {
+func (i *inmemoryMovieRepository) CreateMovie(movie model.Movie) error {
 	movie.ID = len(i.Movies) + 1
 	i.Movies = append(i.Movies, movie)
 
-	return "New movie is successfully added", nil
+	return nil
 }
 
-func (i *inmemoryMovieRepository) DeleteMovie(id int) (string, error) {
-	exist := false
+func (i *inmemoryMovieRepository) DeleteMovie(id int) error {
+	movieExist := false
+
 	var newMovieList []model.Movie
 	for _, movie := range i.Movies {
-		if id == movie.ID {
-			exist = true
-		}
-		if id != movie.ID {
+		if movie.ID == id {
+			movieExist = true
+		} else {
 			newMovieList = append(newMovieList, movie)
 		}
 	}
 
-	if !exist {
-		return "There is no movie with that id.", nil
+	if !movieExist {
+		return ErrMovieNotFound
 	}
 
 	i.Movies = newMovieList
-	return "Movie is successfully deleted", nil
+
+	return nil
 }
 
-func (i *inmemoryMovieRepository) DeleteAllMovies() (string, error) {
-	if i.Movies == nil {
-		return "", errors.New("Movies have been already deleted")
-	}
+func (i *inmemoryMovieRepository) DeleteAllMovies() error {
 	i.Movies = nil
-	return "All movies are successfully deleted", nil
+	return nil
 }
 
-func (i *inmemoryMovieRepository) UpdateMovie(id int, movie model.Movie) (string, error) {
+func (i *inmemoryMovieRepository) UpdateMovie(id int, movie model.Movie) error {
 	for k := 0; k < len(i.Movies); k++ {
 		if i.Movies[k].ID == id {
 			i.Movies[k].Title = movie.Title
+			return nil
 		}
 	}
-	return "Movie is successfully updated", nil
+
+	return ErrMovieNotFound
 }

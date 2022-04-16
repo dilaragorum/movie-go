@@ -65,7 +65,7 @@ func TestMovieHandler_GetMovie(t *testing.T) {
 		{Key: "id", Value: movieID},
 	}
 
-	t.Run("get movie error", func(t *testing.T) {
+	t.Run("get movie error - ErrIDIsNotValid", func(t *testing.T) {
 		req, _ := http.NewRequest("GET", reqURL, http.NoBody)
 		rec := httptest.NewRecorder()
 
@@ -73,7 +73,40 @@ func TestMovieHandler_GetMovie(t *testing.T) {
 		mockService.
 			EXPECT().
 			GetMovie(1).
-			Return(model.Movie{}, errors.New("oops!")).
+			Return(model.Movie{}, service.ErrIDIsNotValid).
+			Times(1)
+
+		mh := NewMovieHandler(mockService)
+		mh.GetMovie(rec, req, ps)
+
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
+
+	t.Run("get movie error - ErrMovieNotFound", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", reqURL, http.NoBody)
+		rec := httptest.NewRecorder()
+
+		mockService := service.NewMockIMovieService(gomock.NewController(t))
+		mockService.
+			EXPECT().
+			GetMovie(1).
+			Return(model.Movie{}, service.ErrMovieNotFound).
+			Times(1)
+
+		mh := NewMovieHandler(mockService)
+		mh.GetMovie(rec, req, ps)
+
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+	})
+	t.Run("get movie error - InternalServerError", func(t *testing.T) {
+		req, _ := http.NewRequest("GET", reqURL, http.NoBody)
+		rec := httptest.NewRecorder()
+
+		mockService := service.NewMockIMovieService(gomock.NewController(t))
+		mockService.
+			EXPECT().
+			GetMovie(1).
+			Return(model.Movie{}, errors.New("")).
 			Times(1)
 
 		mh := NewMovieHandler(mockService)
@@ -81,6 +114,7 @@ func TestMovieHandler_GetMovie(t *testing.T) {
 
 		assert.Equal(t, http.StatusInternalServerError, rec.Code)
 	})
+
 	t.Run("success", func(t *testing.T) {
 		req, _ := http.NewRequest("GET", reqURL, http.NoBody)
 		rec := httptest.NewRecorder()
@@ -105,10 +139,27 @@ func TestMovieHandler_GetMovie(t *testing.T) {
 }
 
 func TestMovieHandler_CreateMovie(t *testing.T) {
-	createdMovieReq := model.Movie{Title: "Test Movie"}
-	jsonStr, _ := json.Marshal(createdMovieReq)
+	t.Run("Error create movie - ErrTitleIsNotEmpty - Bad Request ", func(t *testing.T) {
+		createdMovieReq := model.Movie{Title: ""}
+		jsonStr, _ := json.Marshal(createdMovieReq)
+		req, _ := http.NewRequest(http.MethodPost, "/movies", bytes.NewBuffer(jsonStr))
+		rec := httptest.NewRecorder()
 
-	t.Run("create movie error", func(t *testing.T) {
+		mockService := service.NewMockIMovieService(gomock.NewController(t))
+		mockService.
+			EXPECT().
+			CreateMovie(model.Movie{Title: ""}).
+			Return(service.ErrTitleIsNotEmpty).
+			Times(1)
+
+		mh := NewMovieHandler(mockService)
+		mh.CreateMovie(rec, req, nil)
+
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+	})
+	t.Run("Error create movie - InternalServerError", func(t *testing.T) {
+		createdMovieReq := model.Movie{Title: "Test Movie"}
+		jsonStr, _ := json.Marshal(createdMovieReq)
 		req, _ := http.NewRequest(http.MethodPost, "/movies", bytes.NewBuffer(jsonStr))
 		rec := httptest.NewRecorder()
 
@@ -116,7 +167,7 @@ func TestMovieHandler_CreateMovie(t *testing.T) {
 		mockService.
 			EXPECT().
 			CreateMovie(model.Movie{Title: "Test Movie"}).
-			Return("", errors.New("Ups!")).
+			Return(errors.New("")).
 			Times(1)
 
 		mh := NewMovieHandler(mockService)
@@ -125,6 +176,8 @@ func TestMovieHandler_CreateMovie(t *testing.T) {
 		assert.Equal(t, http.StatusInternalServerError, rec.Code)
 	})
 	t.Run("Success", func(t *testing.T) {
+		createdMovieReq := model.Movie{Title: "Test Movie"}
+		jsonStr, _ := json.Marshal(createdMovieReq)
 		req, _ := http.NewRequest(http.MethodPost, "/movies", bytes.NewBuffer(jsonStr))
 		rec := httptest.NewRecorder()
 
@@ -132,14 +185,14 @@ func TestMovieHandler_CreateMovie(t *testing.T) {
 		mockService.
 			EXPECT().
 			CreateMovie(model.Movie{Title: "Test Movie"}).
-			Return("New movie is successfully added", nil).
+			Return(nil).
 			Times(1)
 
 		mh := NewMovieHandler(mockService)
 		mh.CreateMovie(rec, req, nil)
 
 		responseBodyStr := rec.Body.String()
-		assert.Equal(t, "New movie is successfully added", responseBodyStr)
+		assert.Equal(t, "Movie is successfully created", responseBodyStr)
 	})
 }
 
@@ -150,7 +203,37 @@ func TestMovieHandler_DeleteMovie(t *testing.T) {
 		{Key: "id", Value: movieID},
 	}
 
-	t.Run("delete movie error", func(t *testing.T) {
+	t.Run("delete movie error - Bad Request", func(t *testing.T) {
+		type testCase struct {
+			serviceErr error
+			httpErr    int
+		}
+
+		testErrors := []testCase{
+			{serviceErr: service.ErrIDIsNotValid, httpErr: http.StatusBadRequest},
+			{serviceErr: service.ErrMovieNotFound, httpErr: http.StatusBadRequest},
+		}
+
+		for _, testError := range testErrors {
+			req, _ := http.NewRequest(http.MethodDelete, requestURL, http.NoBody)
+			rec := httptest.NewRecorder()
+
+			mockService := service.NewMockIMovieService(gomock.NewController(t))
+			mockService.
+				EXPECT().
+				DeleteMovie(1).
+				Return(testError.serviceErr).
+				Times(1)
+
+			mh := NewMovieHandler(mockService)
+
+			mh.DeleteMovie(rec, req, ps)
+
+			assert.Equal(t, testError.httpErr, rec.Code)
+		}
+
+	})
+	t.Run("delete movie error - Internal Error", func(t *testing.T) {
 		req, _ := http.NewRequest(http.MethodDelete, requestURL, http.NoBody)
 		rec := httptest.NewRecorder()
 
@@ -158,7 +241,7 @@ func TestMovieHandler_DeleteMovie(t *testing.T) {
 		mockService.
 			EXPECT().
 			DeleteMovie(1).
-			Return("", errors.New("Upps!")).
+			Return(errors.New("")).
 			Times(1)
 
 		mh := NewMovieHandler(mockService)
@@ -176,18 +259,20 @@ func TestMovieHandler_DeleteMovie(t *testing.T) {
 		mockService.
 			EXPECT().
 			DeleteMovie(1).
-			Return("Movie is successfully deleted", nil)
+			Return(nil).
+			Times(1)
 
 		mh := NewMovieHandler(mockService)
 
 		mh.DeleteMovie(rec, req, ps)
 
-		assert.Equal(t, "Movie is successfully deleted", rec.Body.String())
+		assert.Equal(t, http.StatusNoContent, rec.Code)
+		assert.Equal(t, "Movie has been deleted succesfully", rec.Body.String())
 	})
 }
 
 func TestMovieHandler_DeleteAllMovies(t *testing.T) {
-	t.Run("delete all movie error", func(t *testing.T) {
+	t.Run("delete all movie - Internal Server Error", func(t *testing.T) {
 		req, _ := http.NewRequest(http.MethodDelete, "/movies", http.NoBody)
 		rec := httptest.NewRecorder()
 
@@ -195,13 +280,14 @@ func TestMovieHandler_DeleteAllMovies(t *testing.T) {
 		mockService.
 			EXPECT().
 			DeleteAllMovie().
-			Return("", errors.New("Ops!")).
+			Return(errors.New("")).
 			Times(1)
 
 		mh := NewMovieHandler(mockService)
 		mh.DeleteAllMovies(rec, req, nil)
 
 		assert.Equal(t, http.StatusInternalServerError, rec.Code)
+
 	})
 	t.Run("delete all movie successfully", func(t *testing.T) {
 		req, _ := http.NewRequest(http.MethodDelete, "/movies", http.NoBody)
@@ -211,12 +297,13 @@ func TestMovieHandler_DeleteAllMovies(t *testing.T) {
 		mockService.
 			EXPECT().
 			DeleteAllMovie().
-			Return("All movies are successfully deleted", nil)
+			Return(nil)
 
 		mh := NewMovieHandler(mockService)
 		mh.DeleteAllMovies(rec, req, nil)
 
-		assert.Equal(t, "All movies are successfully deleted", rec.Body.String())
+		assert.Equal(t, http.StatusNoContent, rec.Code)
+		assert.Equal(t, "Movies successfully deleted", rec.Body.String())
 	})
 }
 
@@ -229,7 +316,36 @@ func TestMovieHandler_UpdateMovie(t *testing.T) {
 		{Key: "id", Value: movieID},
 	}
 
-	t.Run("update movie error", func(t *testing.T) {
+	t.Run("update movie error - Bad Request", func(t *testing.T) {
+		type testCase struct {
+			returnedServiceErr     error
+			expectedHTTPStatusCode int
+		}
+
+		testErrors := []testCase{
+			{returnedServiceErr: service.ErrIDIsNotValid, expectedHTTPStatusCode: http.StatusBadRequest},
+			{returnedServiceErr: service.ErrTitleIsNotEmpty, expectedHTTPStatusCode: http.StatusBadRequest},
+		}
+
+		for _, testError := range testErrors {
+			req, _ := http.NewRequest(http.MethodPatch, requestURL, bytes.NewBuffer(jsonStr))
+			rec := httptest.NewRecorder()
+
+			mockService := service.NewMockIMovieService(gomock.NewController(t))
+			mockService.
+				EXPECT().
+				UpdateMovie(1, updatedMovie).
+				Return(testError.returnedServiceErr).
+				Times(1)
+
+			mh := NewMovieHandler(mockService)
+			mh.UpdateMovie(rec, req, ps)
+
+			assert.Equal(t, testError.expectedHTTPStatusCode, rec.Code)
+		}
+	})
+
+	t.Run("update movie error - Status Not Found Error", func(t *testing.T) {
 		req, _ := http.NewRequest(http.MethodPatch, requestURL, bytes.NewBuffer(jsonStr))
 		rec := httptest.NewRecorder()
 
@@ -237,7 +353,24 @@ func TestMovieHandler_UpdateMovie(t *testing.T) {
 		mockService.
 			EXPECT().
 			UpdateMovie(1, updatedMovie).
-			Return("", errors.New("Ups!")).
+			Return(service.ErrMovieNotFound).
+			Times(1)
+
+		mh := NewMovieHandler(mockService)
+		mh.UpdateMovie(rec, req, ps)
+
+		assert.Equal(t, http.StatusNotFound, rec.Code)
+	})
+
+	t.Run("update movie error - Internal Server Error", func(t *testing.T) {
+		req, _ := http.NewRequest(http.MethodPatch, requestURL, bytes.NewBuffer(jsonStr))
+		rec := httptest.NewRecorder()
+
+		mockService := service.NewMockIMovieService(gomock.NewController(t))
+		mockService.
+			EXPECT().
+			UpdateMovie(1, updatedMovie).
+			Return(errors.New("")).
 			Times(1)
 
 		mh := NewMovieHandler(mockService)
@@ -254,13 +387,13 @@ func TestMovieHandler_UpdateMovie(t *testing.T) {
 		mockService.
 			EXPECT().
 			UpdateMovie(1, updatedMovie).
-			Return("Movie is successfully updated", nil).
+			Return(nil).
 			Times(1)
 
 		mh := NewMovieHandler(mockService)
 		mh.UpdateMovie(rec, req, ps)
 
-		responseBodyStr := rec.Body.String()
-		assert.Equal(t, "Movie is successfully updated", responseBodyStr)
+		assert.Equal(t, http.StatusNoContent, rec.Code)
+		assert.Equal(t, "Successfully Updated", rec.Body.String())
 	})
 }

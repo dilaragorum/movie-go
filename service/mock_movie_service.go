@@ -35,12 +35,11 @@ func (m *MockIMovieService) EXPECT() *MockIMovieServiceMockRecorder {
 }
 
 // CreateMovie mocks base method.
-func (m *MockIMovieService) CreateMovie(movie model.Movie) (string, error) {
+func (m *MockIMovieService) CreateMovie(movie model.Movie) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CreateMovie", movie)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // CreateMovie indicates an expected call of CreateMovie.
@@ -50,12 +49,11 @@ func (mr *MockIMovieServiceMockRecorder) CreateMovie(movie interface{}) *gomock.
 }
 
 // DeleteAllMovie mocks base method.
-func (m *MockIMovieService) DeleteAllMovie() (string, error) {
+func (m *MockIMovieService) DeleteAllMovie() error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteAllMovie")
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // DeleteAllMovie indicates an expected call of DeleteAllMovie.
@@ -65,12 +63,11 @@ func (mr *MockIMovieServiceMockRecorder) DeleteAllMovie() *gomock.Call {
 }
 
 // DeleteMovie mocks base method.
-func (m *MockIMovieService) DeleteMovie(id int) (string, error) {
+func (m *MockIMovieService) DeleteMovie(id int) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteMovie", id)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // DeleteMovie indicates an expected call of DeleteMovie.
@@ -110,12 +107,11 @@ func (mr *MockIMovieServiceMockRecorder) GetMovies() *gomock.Call {
 }
 
 // UpdateMovie mocks base method.
-func (m *MockIMovieService) UpdateMovie(id int, movie model.Movie) (string, error) {
+func (m *MockIMovieService) UpdateMovie(id int, movie model.Movie) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateMovie", id, movie)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
+	ret0, _ := ret[0].(error)
+	return ret0
 }
 
 // UpdateMovie indicates an expected call of UpdateMovie.

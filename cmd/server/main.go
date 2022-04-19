@@ -10,8 +10,10 @@ import (
 )
 
 func main() {
-	movieInMemoryRepository := repository.NewInMemoryMovieRepository()
-	movieService := service.NewDefaultMovieService(movieInMemoryRepository)
+	// movieInMemoryRepository := repository.NewInMemoryMovieRepository()
+
+	moviePostgreSQLRepository := repository.NewPostgreSQLMovieRepository()
+	movieService := service.NewDefaultMovieService(moviePostgreSQLRepository)
 	movieHandler := handler.NewMovieHandler(movieService)
 
 	router := httprouter.New()

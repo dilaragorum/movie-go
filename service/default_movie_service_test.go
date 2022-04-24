@@ -111,7 +111,7 @@ func TestDefaultMovieService_UpdateMovie(t *testing.T) {
 		assert.ErrorIs(t, err, ErrMovieNotFound)
 	})
 
-	t.Run("Error Update Movie - ErrMovieNotFound", func(t *testing.T) {
+	t.Run("Success Update Movie ", func(t *testing.T) {
 		movie := model.Movie{Title: "Test Movie"}
 		mockRepository := repository.NewMockIMovieRepository(gomock.NewController(t))
 		mockRepository.
